@@ -1,0 +1,604 @@
+---
+title: "AOL"
+author: "Kimberly Kayla Dewi"
+date: "2023-05-08"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(rlang)
+library(dplyr)
+library(visdat)
+library(readxl)
+library(mlbench)
+library(pROC)
+library(MLmetrics)
+library(rpart)
+library(rpart.plot)
+#library(party)
+library(randomForest)
+#library(caret)
+```
+memanggil library
+
+#GDP by Country dataset
+library xlsx
+```{r}
+library(readxl)
+```
+memanggil library
+
+```{r}
+library(visdat)
+```
+memanggil library
+
+```{r}
+gdp_data <- read_xlsx('gdp-in-us.xlsx')
+```
+membaca file xlsx
+
+```{r}
+View(gdp_data)
+```
+melihat file dataset
+
+```{r}
+library(dplyr)
+```
+install library
+
+```{r}
+gdp_reduced <- gdp_data %>%  filter(!row_number() %in% c(1, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61))
+```
+menghapus tahun 1961-1992, 2004-2014, dan 2021
+
+```{r}
+View(gdp_reduced)
+```
+melihat data gdp_reduced
+
+##General Characteristics
+```{r}
+head(gdp_reduced)
+```
+display head data
+
+```{r}
+tail(gdp_reduced)
+```
+display tail data
+
+```{r}
+View(gdp_reduced)
+```
+melihat data
+
+```{r}
+sapply(gdp_reduced, class)
+```
+display tipe data
+
+```{r}
+str(gdp_reduced)
+```
+display karakteristik data
+
+```{r}
+attributes(gdp_reduced)
+```
+attribut dr data
+
+```{r}
+unique(gdp_reduced)
+```
+list data yg unik pd tiap kolom
+
+```{r}
+View(gdp_reduced)
+```
+melihat data
+
+```{r}
+colSums(is.na(gdp_reduced))
+```
+mengetahui jumlah data yg kosong di tiap kolom
+
+```{r}
+dim(gdp_reduced)
+```
+mengetahui jumlah baris dan kolom dari data
+
+```{r}
+vis_miss(gdp_reduced)
+```
+persentase data sblm dibersihkan
+tidak ada data yg kosong
+
+```{r}
+BasicSummary <- function(df, dgts = 3)
+{
+  m <- ncol(df)
+  varNames <- colnames(df)
+  varType <- vector("character", m)
+  topLevel <- vector("character", m)
+  topCount <- vector("numeric", m)
+  missCount <- vector("numeric", m)
+  levels <- vector("numeric", m)
+  
+  for (i in 1:m)
+  {
+    x <- df[,i]
+    varType[i] <- class(x)
+    xtab <- table(x, useNA = "ifany")
+    levels[i] <- length(xtab)
+    nums <- as.numeric(xtab)
+    maxnum <- max(nums)
+    topCount[i] <- maxnum
+    maxIndex <- which.max(nums)
+    lvls <- names(xtab)
+    topLevel[i] <- lvls[maxIndex]
+    missIndex <- which((is.na(x)) | (x == "") | (x == " "))
+    missCount[i] <- length(missIndex)
+  }
+  n <- nrow(df)
+  topFrac <- round(topCount/n, digits = dgts)
+  missFrac <- round(missCount/n, digits = dgts)
+  summaryFrame <- data.frame(variable = varNames, type = varType,
+  levels = levels, topLevel = topLevel,
+  topCount = topCount, topFrac = topFrac,
+  missFreq = missCount, missFrac = missFrac)
+  return(summaryFrame)
+  }
+```
+basic summary code
+
+```{r}
+BasicSummary(gdp_reduced)
+```
+basic summary dr data
+
+##Descriptive Statistics
+```{r}
+summary(gdp_reduced)
+```
+summary dr data
+
+```{r}
+var(gdp_reduced)
+```
+varians data
+
+```{r}
+apply(gdp_reduced[1:4], 2, sd, na.rm = T)
+```
+standar deviasi data
+
+##Data Anomalies/Outliers
+```{r}
+boxplot(year ~ gdp, data = gdp_reduced)
+```
+tidak terdapat outlier pada data
+
+```{r}
+table(gdp_reduced)
+```
+table yang berisi list outlier pada dataset
+
+##Exploratory Visualization
+```{r}
+hist(gdp_reduced$year)
+```
+histogram frekuensi tahun yang terpilih untuk diteliti
+
+```{r}
+hist(gdp_reduced$gdp)
+```
+histogram  frekuensi gdp
+
+```{r}
+hist(gdp_reduced$gdp_per_capita)
+```
+histogram gdp_per_capita beserta frekuensinya
+
+```{r}
+hist(gdp_reduced$growth)
+```
+histogram growth beserta frekuensinya
+
+##Explanatory Visualization
+```{r}
+plot(gdp_reduced)
+```
+scatterplot gdp_reduced
+
+##Linear Regression
+```{r}
+par(mfrow = c(1,1))
+x <- gdp_reduced$gdp
+y <- gdp_reduced$year
+plot(x, y, xlab = "gdp", ylab = "year")
+index <- which(y > 0)
+points(x[-index], y[-index], pch = 16) 
+points(x[-index], y[-index], pch = 18, cex = 2)
+olsmodel <- lm(y ~ x)
+abline(olsmodel, lty = 3)
+```
+linear regression pada gdp per capita dan growth
+
+##Predictive Model
+```{r}
+keepVars <- c("year", "gdp", "gdp_per_capita", "growth")
+gdpSub <- gdp_reduced[, keepVars]
+```
+untuk menyimpan nilai pada variabel
+
+###Training set and Validation set
+```{r}
+set.seed(123)
+n <- nrow(gdpSub)
+train <- sample(n, round(0.7 * n))
+gdpTrain <- gdpSub[train,]
+gdpValidation <- gdpSub[-train,]
+```
+membuat training set dan validation set
+
+```{r}
+View(gdpTrain)
+View(gdpValidation)
+```
+melihat data training dan validation set
+
+```{r}
+logisticFull <- glm(gdp ~., family = "poisson", data = gdpTrain) #poisson/binomial/gaussian
+summary(logisticFull)
+```
+summary logisticFull untuk gdp
+
+```{r}
+exp(coef(logisticFull))
+```
+exponentiating the logisticFull outcome
+
+```{r}
+logisticRef <- glm(gdp ~ growth, family = "poisson", data = gdpTrain)
+summary(logisticRef)
+```
+summary logisticRef untuk gdp
+
+```{r}
+exp(coef(logisticRef))
+```
+exponentiating the logisticRef outcome
+
+```{r}
+gdp_pHatFullv <- predict(logisticFull, newdata = gdpValidation, type = "response")
+gdp_pHatRefv <- predict(logisticRef, newdata = gdpValidation, type = "response")
+```
+validation model
+
+```{r}
+gdp_pHatRefv
+```
+hasil gdp_pHatRefv
+
+```{r}
+gdpValidation$gdp
+```
+hasil gdpValidation$gdp
+
+###Accuracy Model
+```{r}
+threshold1 <- table(gdpValidation$gdp, gdp_pHatFullv > 0.5)
+threshold2 <- table(gdpValidation$gdp, gdp_pHatRefv > 0.5)
+accuracymodel1 <- round(sum(diag(threshold1)) / sum(threshold1), 2)
+accuracymodel2 <- round(sum(diag(threshold2)) / sum(threshold2), 2)
+sprintf("Accuracy model 1 is %s", accuracymodel1)
+sprintf("Accuracy model 2 is %s", accuracymodel2)
+```
+accuracy model 1 and 2 sama
+
+###Predictive Model
+```{r}
+library(randomForest)
+```
+install library
+
+```{r}
+PreModel1 <- predict(gdpModel1, newdata = gdpValidation, type = "class")
+PreModel2 <- predict(gdpModel2, newdata = gdpValidation, type = "class")
+```
+membuat variabel baru
+
+```{r}
+library(rpart)
+library(rpart.plot)
+#library(party)
+```
+install library
+
+```{r}
+gdpModel1 <- rpart(gdp ~., data = gdpTrain, method = "class")
+gdpModel2 <- rpart(gdp ~ gdp_per_capita, data = gdpTrain, method = "class")
+```
+membuat variabel baru
+
+###Confusion Matrix for the 1st Model
+```{r}
+cm <- table(PreModel1, gdpValidation$gdp)
+cm
+```
+membuat variabel confusion matrix
+
+####High
+```{r}
+accuracy <- sum(cm[1], cm[5:6], cm[8:9]) / sum(cm[1:9])
+precision <- cm[1] / sum(cm[1:3])
+sensitiv <- cm[1] / sum(cm[1], cm[4], cm[7])
+fscore <- (2 * (sensitiv * precision))/(sensitiv + precision)
+specificity <- sum(cm[5:6], cm[8:9]) / sum(cm[5:6], cm[8:9], cm[2:3])
+sprintf("Accuracy is %s", round(accuracy,3))
+sprintf("Precision is %s", round(precision,3))
+sprintf("sensitivity is %s", round(sensitiv,3))
+sprintf("specificity is %s", round(specificity,3))
+```
+high predictive model
+
+```{r}
+gdpModel1
+```
+model 1 gdp
+
+####Medium
+```{r}
+accuracy <- sum(cm[9], cm[1], cm[2], cm[4], cm[5]) / sum(cm[1:9])
+precision <- cm[9] / sum(cm[7:9])
+sensitiv <- cm[9] / sum(cm[9], cm[3], cm[6])
+fscore <- (2 * (sensitiv * precision))/(sensitiv + precision)
+specificity <- sum(cm[1], cm[2], cm[4], cm[5]) / sum(cm[1], cm[2], cm[4], cm[5], cm[7], cm[8])
+sprintf("Accuracy is %s", round(accuracy,3))
+sprintf("Precision is %s", round(precision,3))
+sprintf("sensitivity is %s", round(sensitiv,3))
+sprintf("specificity is %s", round(specificity,3))
+```
+medium predictive model
+
+####Low
+```{r}
+accuracy <- sum(cm[5], cm[1], cm[3], cm[7], cm[9]) / sum(cm[1:9])
+precision <- cm[5] / sum(cm[4:6])
+sensitiv <- cm[5] / sum(cm[2], cm[5], cm[8])
+fscore <- (2 * (sensitiv * precision))/(sensitiv + precision)
+specificity <- sum(cm[1], cm[3], cm[7], cm[9]) / sum(cm[1], cm[3], cm[7], cm[9], cm[4], cm[6])
+sprintf("Accuracy is %s", round(accuracy,3))
+sprintf("Precision is %s", round(precision,3))
+sprintf("sensitivity is %s", round(sensitiv,3))
+sprintf("specificity is %s", round(specificity,3))
+```
+low predictive model
+
+###Confusion Matrix for the 2nd Model
+
+####High
+```{r}
+accuracy <- sum(cm[1], cm[5:6], cm[8:9]) / sum(cm[1:9])
+precision <- cm[1] / sum(cm[1:3])
+sensitiv <- cm[1] / sum(cm[1], cm[4], cm[7])
+fscore <- (2 * (sensitiv * precision))/(sensitiv + precision)
+specificity <- sum(cm[5:6], cm[8:9]) / sum(cm[5:6], cm[8:9], cm[2:3])
+sprintf("Accuracy is %s", round(accuracy,3))
+sprintf("Precision is %s", round(precision,3))
+sprintf("sensitivity is %s", round(sensitiv,3))
+sprintf("specificity is %s", round(specificity,3))
+```
+high predictive model
+
+####Medium
+```{r}
+accuracy <- sum(cm[9], cm[1], cm[2], cm[4], cm[5]) / sum(cm[1:9])
+precision <- cm[9] / sum(cm[7:9])
+sensitiv <- cm[9] / sum(cm[9], cm[3], cm[6])
+fscore <- (2 * (sensitiv * precision))/(sensitiv + precision)
+specificity <- sum(cm[1], cm[2], cm[4], cm[5]) / sum(cm[1], cm[2], cm[4], cm[5], cm[7], cm[8])
+sprintf("Accuracy is %s", round(accuracy,3))
+sprintf("Precision is %s", round(precision,3))
+sprintf("sensitivity is %s", round(sensitiv,3))
+sprintf("specificity is %s", round(specificity,3))
+```
+medium predictive model
+
+```{r}
+gdpModel2
+```
+model 2 for gdp
+
+#GDP Year
+library xlsx
+```{r}
+library(readxl)
+```
+memanggil library
+
+```{r}
+library(visdat)
+```
+memanggil library
+
+```{r}
+GDP_data <- read_xlsx('GDP.xlsx')
+```
+membaca file xlsx
+
+```{r}
+View(GDP_data)
+```
+melihat file dataset
+
+```{r}
+library(dplyr)
+```
+install library
+
+```{r}
+GDP_data <- GDP_data[,c("United States")]
+GDP_reduced <- GDP_data[669:679,]
+Year = c(1913, 1914, 1915, 1916, 1917, 1918, 1919, 1920, 1921, 1922, 1923)
+GDP_reduced$Year <- Year
+GDP_reduced
+```
+mengambil tahun 1913-1923
+
+```{r}
+View(GDP_reduced)
+```
+melihat data GDP_reduced
+
+##General Characteristics
+```{r}
+head(GDP_reduced)
+```
+display head data
+
+```{r}
+tail(GDP_reduced)
+```
+display tail data
+
+```{r}
+sapply(GDP_reduced, class)
+```
+display tipe data
+
+```{r}
+str(GDP_reduced)
+```
+display karakteristik data
+
+```{r}
+attributes(GDP_reduced)
+```
+attribut dr data
+
+```{r}
+unique(GDP_reduced)
+```
+list data yg unik pd tiap kolom
+
+```{r}
+View(GDP_reduced)
+```
+view data
+
+```{r}
+colSums(is.na(GDP_reduced))
+```
+mengetahui jumlah data yg kosong di tiap kolom
+
+```{r}
+dim(GDP_reduced)
+```
+mengetahui jumlah baris dan kolom dari data
+
+```{r}
+vis_miss(GDP_reduced)
+```
+persentase data sblm dibersihkan
+tidak ada data yg kosong
+
+```{r}
+BasicSummary <- function(df, dgts = 3)
+{
+  m <- ncol(df)
+  varNames <- colnames(df)
+  varType <- vector("character", m)
+  topLevel <- vector("character", m)
+  topCount <- vector("numeric", m)
+  missCount <- vector("numeric", m)
+  levels <- vector("numeric", m)
+  
+  for (i in 1:m)
+  {
+    x <- df[,i]
+    varType[i] <- class(x)
+    xtab <- table(x, useNA = "ifany")
+    levels[i] <- length(xtab)
+    nums <- as.numeric(xtab)
+    maxnum <- max(nums)
+    topCount[i] <- maxnum
+    maxIndex <- which.max(nums)
+    lvls <- names(xtab)
+    topLevel[i] <- lvls[maxIndex]
+    missIndex <- which((is.na(x)) | (x == "") | (x == " "))
+    missCount[i] <- length(missIndex)
+  }
+  n <- nrow(df)
+  topFrac <- round(topCount/n, digits = dgts)
+  missFrac <- round(missCount/n, digits = dgts)
+  summaryFrame <- data.frame(variable = varNames, type = varType,
+  levels = levels, topLevel = topLevel,
+  topCount = topCount, topFrac = topFrac,
+  missFreq = missCount, missFrac = missFrac)
+  return(summaryFrame)
+  }
+```
+basic summary code
+
+```{r}
+BasicSummary(GDP_reduced)
+```
+basic summary dr data
+
+##Descriptive Statistics
+```{r}
+summary(GDP_reduced)
+```
+summary dr data
+
+```{r}
+var(GDP_reduced)
+```
+varians data
+
+```{r}
+apply(GDP_reduced[1:2], 2, sd, na.rm = T)
+```
+standar deviasi data
+
+##Data Anomalies/Outliers
+```{r}
+boxplot(GDP_reduced)
+```
+tidak terdapat outlier pada data
+
+```{r}
+table(GDP_reduced)
+```
+table yang berisi list outlier pada dataset
+
+##Exploratory Visualization
+```{r}
+hist(GDP_reduced$`United States`)
+```
+histogram frekuensi tahun yang terpilih untuk diteliti
+
+##Explanatory Visualization
+```{r}
+plot(GDP_reduced)
+```
+scatterplot gdp_reduced
+
+##Linear Regression
+```{r}
+par(mfrow = c(1,1))
+x <- GDP_reduced$`United States`
+y <- GDP_reduced$Year
+plot(x, y, xlab = "gdp", ylab = "Year")
+index <- which(y > 0)
+points(x[-index], y[-index], pch = 16) 
+points(x[-index], y[-index], pch = 18, cex = 2)
+olsmodel <- lm(y ~ x)
+abline(olsmodel, lty = 3)
+```
+linear regression pada gdp per capita dan growth
+
